@@ -5,10 +5,20 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var bodyParser = require('body-parser')
 var cors = require('cors');
-
+var firebaseAdmin = require("firebase-admin");
+var db = firebaseAdmin.database();
+/* ----------- */
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var postsRouter = require('./routes/posts');
+var candidatesRouter = require('./routes/candidates');
+
+var serviceAccount = require("path/to/serviceAccountKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://persol-interview.firebaseio.com"
+});
 
 var app = express();
 app.use(cors());
