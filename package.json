@@ -11,6 +11,8 @@
     "cors": "^2.8.4",
     "debug": "~2.6.9",
     "express": "~4.16.0",
+    "firebase": "^5.7.2",
+    "firebase-admin": "^6.4.0",
     "http-errors": "~1.6.2",
     "jade": "~1.11.0",
     "lodash": "^4.17.10",

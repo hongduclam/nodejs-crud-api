@@ -2,29 +2,50 @@ var express = require("express");
 var moment = require("moment");
 var uuid = require("uuid");
 var _ = require("lodash");
+var firebase = require("firebase-admin");
+var db = firebase
+	.app()
+	.database()
+	.ref();
+
 var router = express.Router();
-var userRef = db.ref("/candidates/users");
 
 /**
- * body: {key, name, email, sdt, title, createdDate(sys)}
+ * request body: {auth, name, email, phone, title, expiredTime, testLink }
+ * entity: {auth, key, name, email, phone, title, expiredTime, testLink, createdDate(sys)}
  */
-router.post("/createKey", function(req, res) {
+// var body = {
+// 	auth: "Ittech1@#$",
+// 	name: "Hong Duc Lam",
+// 	email: "hongduclam@gmail.com",
+// 	phone: "0902796941",
+// 	title: "Sr FE",
+// 	testLink: "http://localhost.com"
+// };
+router.post("/create", function(req, res, next) {
 	const data = req.body;
-	data.key = uuid();
-	data.createdDate = moment().valueOf();
-	// data.expiredDate = moment().valueOf();
-	usersRef.set(data, function(err) {
-		if (err) {
-			res.status(500).json({
-				message: err
-			});
-		} else {
-			res.status(200).json({
-				message: "OK",
-				data: data.key
-			});
-		}
-	});
+	if (data.auth && data.auth === "Ittech1@#$") {
+		delete data["auth"];
+		var uid = db.child("candidates").push().key;
+		data.createdDate = moment().valueOf();
+		// do a multi-path write!
+		var mergedData = {};
+		mergedData["candidates/" + uid] = data;
+		db.update(mergedData)
+			.then(function(err) {
+				if (err) {
+					res.status(500).json({
+						message: err
+					});
+				} else {
+					return res.status(200).json({
+						message: "OK",
+						data: uid
+					});
+				}
+			})
+			.catch(next);
+	}
 });
 
 /**
@@ -32,13 +53,31 @@ router.post("/createKey", function(req, res) {
  */
 router.post("/register", function(req, res, next) {
 	const data = req.body;
-	userRef
-		.child("key")
-		.once(data.key)
+	db.child("candidates/" + data.key)
+		.once("value")
 		.then(function(snapshot) {
 			var value = snapshot.val();
+			console.log(value);
 			if (value) {
-        
+				value.expiredTime = moment(value.createdDate)
+					.add(8, "h")
+					.valueOf();
+				var mergedData = {};
+				mergedData["candidates/" + data.key] = value;
+				db.update(mergedData)
+					.then(function(err) {
+						if (err) {
+							res.status(500).json({
+								message: err
+							});
+						} else {
+							return res.status(200).json({
+								message: "OK",
+								data: value
+							});
+						}
+					})
+					.catch(next);
 			} else {
 				res.status(422).json({
 					message: "Key Not Found"
@@ -48,47 +87,56 @@ router.post("/register", function(req, res, next) {
 		.catch(next);
 });
 
-let posts = [
-	{ id: 1, volume: "121,608,235", last: "31.79", description: "WILLIAMS COS INC DEL", change: "0.00 (+0.00%)" },
-	{ id: 2, volume: "55,679,849", last: "31.79", description: "BANK AMER CORP", change: "-0.41 (-1.30%)" }
-];
-
-/* GET users listing. */
-router.get("/", function(req, res, next) {
-	// res.send('respond with a resource');
-	res.json(posts);
+router.get("/:key", function(req, res, next) {
+	var key = req.params.key;
+	db.child("candidates/" + key)
+		.once("value")
+		.then(function(snapshot) {
+			var value = snapshot.val();
+			console.log(value);
+			if (value) {
+				res.status(422).json({
+					message: "OK",
+					data: value
+				});
+			} else {
+				res.status(422).json({
+					message: "Key Not Found"
+				});
+			}
+		})
+		.catch(next);
 });
 
-router.post("/", function(req, res) {
-	const data = req.body;
-	console.log(data);
-	data.id = posts.length;
-	posts.push(data);
-	res.send("ok");
-	// ...
+// get list
+router.get("/:key", function(req, res, next) {
+	db.child("candidates")
+		.once("value")
+		.then(function(snapshot) {
+			var value = snapshot.val();
+			res.status(422).json({
+				message: "OK",
+				data: value
+			});
+		})
+		.catch(next);
 });
 
-router.get("/:id", function(req, res, next) {
-	const rs = posts.filter(function(t) {
-		return t.id == req.params.id;
-	});
-	res.json(rs.length > 0 ? rs[0] : {});
-});
-
-router.patch("/:id", function(req, res, next) {
-	const index = _.findIndex(posts, function(item) {
-		return item.id == req.params.id;
-	});
-	const data = req.body;
-	posts[index] = data;
-	res.json(data);
-});
-
-router.delete("/:id", function(req, res, next) {
-	_.remove(posts, function(item) {
-		return item.id == req.params.id;
-	});
-	res.json(posts);
+router.delete("/:key", function(req, res, next) {
+	var adaRef = db.ref("candidates/" + req.body.key);
+	adaRef
+		.remove()
+		.then(function() {
+			console.log("Remove succeeded.");
+			res.status(422).json({
+				message: "OK"
+			});
+		})
+		.catch(function(error) {
+			res.status(422).json({
+				message: error.message
+			});
+		});
 });
 
 module.exports = router;
