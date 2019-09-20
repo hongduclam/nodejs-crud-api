@@ -1,6 +1,6 @@
 var express = require("express");
 var moment = require("moment");
-var uuid = require("uuid");
+var token = "Ittech1@#$";
 var _ = require("lodash");
 var firebase = require("firebase-admin");
 var db = firebase
@@ -11,28 +11,32 @@ var db = firebase
 var router = express.Router();
 
 /**
- * request body: {auth, name, email, phone, title, expiredTime, testLink }
- * entity: {auth, key, name, email, phone, title, expiredTime, testLink, createdDate(sys)}
+ * request body: {name, email, phone, title, expiredTime, testLink }
+ * entity: {key, name, email, phone, title, expiredTime, testLink, createdDate(sys)}
  */
 // var body = {
-// 	auth: "Ittech1@#$",
 // 	name: "Hong Duc Lam",
 // 	email: "hongduclam@gmail.com",
 // 	phone: "0902796941",
 // 	title: "Sr FE",
 // 	testLink: "http://localhost.com"
 // };
-router.post("/create", function(req, res, next) {
+router.post("", function (req, res, next) {
 	const data = req.body;
-	if (data.auth && data.auth === "Ittech1@#$") {
+	if (req.query.auth !== token) {
+		res.status(401).json({
+			message: "Don't Hack Me"
+		});
+	} else {
 		delete data["auth"];
 		var uid = db.child("candidates").push().key;
 		data.createdDate = moment().valueOf();
+		data.id = uid;
 		// do a multi-path write!
 		var mergedData = {};
 		mergedData["candidates/" + uid] = data;
 		db.update(mergedData)
-			.then(function(err) {
+			.then(function (err) {
 				if (err) {
 					res.status(500).json({
 						message: err
@@ -48,14 +52,98 @@ router.post("/create", function(req, res, next) {
 	}
 });
 
+router.delete("/:id", function (req, res, next) {
+	if (req.query.auth !== token) {
+		res.status(401).json({
+			message: "Don't Hack Me"
+		});
+	} else {
+		firebase.database().ref("candidates/" + req.params.id)
+			.remove()
+			.then(function () {
+				console.log("Remove succeeded.");
+				res.status(200).json({
+					message: "OK"
+				});
+			})
+			.catch(function (error) {
+				res.status(422).json({
+					message: error.message
+				});
+			});
+	}
+});
+
+// get list
+router.get("", function (req, res, next) {
+	if (req.query.auth !== token) {
+		res.status(401).json({
+			message: "Don't Hack Me"
+		});
+	} else {
+		db.child("candidates")
+			.once("value")
+			.then(function (snapshot) {
+				var value = snapshot.val();
+				res.status(200).json({
+					message: "OK",
+					data: Object.values(value)
+				});
+			})
+			.catch(next);
+	}
+});
+
+router.patch("/:id", function (req, res, next) {
+	if (req.query.auth !== token) {
+		res.status(401).json({
+			message: "Don't Hack Me"
+		});
+	} else {
+		const data = req.body;
+		db.child("candidates/" + req.params.id)
+			.once("value")
+			.then(function (snapshot) {
+				var value = snapshot.val();
+				console.log(value);
+				if (value) {
+					var mergedData = {};
+					mergedData["candidates/" + req.params.id] = Object.assign(value, data);
+					db.update(mergedData)
+						.then(function (err) {
+							if (err) {
+								res.status(500).json({
+									message: err
+								});
+							} else {
+								return res.status(200).json({
+									message: "OK",
+									data: value
+								});
+							}
+						})
+						.catch(next);
+				} else {
+					res.status(422).json({
+						message: "Id Not Found"
+					});
+				}
+			})
+			.catch(next);
+	}
+});
+
+
+
+//-----------------------
 /**
  * body: {key, expiredTime(sys)}
  */
-router.post("/register", function(req, res, next) {
+router.post("/register", function (req, res, next) {
 	const data = req.body;
 	db.child("candidates/" + data.key)
 		.once("value")
-		.then(function(snapshot) {
+		.then(function (snapshot) {
 			var value = snapshot.val();
 			console.log(value);
 			if (value) {
@@ -65,7 +153,7 @@ router.post("/register", function(req, res, next) {
 				var mergedData = {};
 				mergedData["candidates/" + data.key] = value;
 				db.update(mergedData)
-					.then(function(err) {
+					.then(function (err) {
 						if (err) {
 							res.status(500).json({
 								message: err
@@ -87,11 +175,11 @@ router.post("/register", function(req, res, next) {
 		.catch(next);
 });
 
-router.get("/:key", function(req, res, next) {
+router.get("/:key", function (req, res, next) {
 	var key = req.params.key;
 	db.child("candidates/" + key)
 		.once("value")
-		.then(function(snapshot) {
+		.then(function (snapshot) {
 			var value = snapshot.val();
 			console.log(value);
 			if (value) {
@@ -106,37 +194,6 @@ router.get("/:key", function(req, res, next) {
 			}
 		})
 		.catch(next);
-});
-
-// get list
-router.get("/:key", function(req, res, next) {
-	db.child("candidates")
-		.once("value")
-		.then(function(snapshot) {
-			var value = snapshot.val();
-			res.status(422).json({
-				message: "OK",
-				data: value
-			});
-		})
-		.catch(next);
-});
-
-router.delete("/:key", function(req, res, next) {
-	var adaRef = db.ref("candidates/" + req.body.key);
-	adaRef
-		.remove()
-		.then(function() {
-			console.log("Remove succeeded.");
-			res.status(422).json({
-				message: "OK"
-			});
-		})
-		.catch(function(error) {
-			res.status(422).json({
-				message: error.message
-			});
-		});
 });
 
 module.exports = router;
